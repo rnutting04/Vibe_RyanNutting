@@ -2,8 +2,8 @@ from db import SessionLocal
 from models.account import Account
 
 class AccountRepository:
-    def __init__(self):
-        self.db = SessionLocal()
+    def __init__(self, db):
+        self.db = db
 
     def add_account(self, account):
         self.db.add(account)

@@ -1,13 +1,15 @@
 from db import SessionLocal
 from models.transaction import Transaction
 
+
+
 class TransactionRepository:
-    def __init__(self):
-        self.db = SessionLocal()
+    def __init__(self, db):
+        self.db = db
 
     def add_transaction(self, transaction):
         self.db.add(transaction)
-        self.db.commit()
+        self.db.flush()
         self.db.refresh(transaction)
         return transaction
 

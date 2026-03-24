@@ -2,12 +2,12 @@ from db import SessionLocal
 from models.user import User
 
 class UserRepository:
-    def __init__(self):
-        self.db = SessionLocal()
+    def __init__(self, db):
+        self.db = db
 
     def add_user(self, user):
         self.db.add(user)
-        self.db.commit()
+        self.db.flush()
         self.db.refresh(user)
         return user
 
