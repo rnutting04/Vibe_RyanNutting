@@ -29,7 +29,8 @@ def create_user():
     data = request.get_json()
     if not data or 'user_id' not in data or 'name' not in data:
         return jsonify({"error": "user_id and name required"}), 400
-    user = user_service.create_user(data['user_id'], data['name'])
+    user = user_service.create_user(user_id=data["user_id"], 
+                                    name=data["name"])
     return jsonify({"user_id": user.user_id, "name": user.name}), 201
 
 @app.route('/api/users/<int:user_id>', methods=['GET'])

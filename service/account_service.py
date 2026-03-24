@@ -9,9 +9,8 @@ class AccountService:
         self.transaction_repo = transaction_repo
 
     def create_account(self, account_id, user_id, initial_balance=0.0):
-        account = Account(account_id, user_id, initial_balance)
-        self.account_repo.add_account(account)
-        return account
+        account = Account(account_id=account_id, user_id=user_id, balance=initial_balance)
+        return self.account_repo.add_account(account)
 
     def get_account(self, account_id):
         return self.account_repo.get_account(account_id)
@@ -21,8 +20,10 @@ class AccountService:
         if not account or amount <= 0:
             return None, None
         account.balance += amount
-        txn = Transaction(len(self.transaction_repo.transactions)+1, account_id, amount, 'deposit')
+        txn = Transaction(account_id=account_id, amount=amount, type='deposit')
         self.transaction_repo.add_transaction(txn)
+        self.account_repo.db.commit()
+        self.account_repo.db.refresh(account)
         return account, txn
 
     def withdraw(self, account_id, amount):
@@ -30,8 +31,10 @@ class AccountService:
         if not account or amount <= 0 or account.balance < amount:
             return None, None
         account.balance -= amount
-        txn = Transaction(len(self.transaction_repo.transactions)+1, account_id, -amount, 'withdrawal')
+        txn = Transaction(account_id=account_id, amount=-amount, type='withdrawal')
         self.transaction_repo.add_transaction(txn)
+        self.account_repo.db.commit()
+        self.account_repo.db.refresh(account)
         return account, txn
 
     def get_transactions(self, account_id):

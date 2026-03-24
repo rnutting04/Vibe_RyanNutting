@@ -1,12 +1,18 @@
+from db import SessionLocal
+from models.account import Account
+
 class AccountRepository:
     def __init__(self):
-        self.accounts = []
+        self.db = SessionLocal()
 
     def add_account(self, account):
-        self.accounts.append(account)
+        self.db.add(account)
+        self.db.commit()
+        self.db.refresh(account)
+        return account
 
     def get_account(self, account_id):
-        return next((a for a in self.accounts if a.account_id == account_id), None)
+        return self.db.query(Account).filter(Account.account_id == account_id).first()
 
     def get_accounts_by_user(self, user_id):
-        return [a for a in self.accounts if a.user_id == user_id]
+        return self.db.query(Account).filter(Account.user_id == user_id).all()

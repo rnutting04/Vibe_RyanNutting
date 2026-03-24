@@ -6,7 +6,7 @@ class UserService:
         self.user_repo = user_repo
 
     def create_user(self, user_id, name):
-        user = User(user_id, name)
+        user = User(user_id=user_id, name=name)
         self.user_repo.add_user(user)
         return user
 
