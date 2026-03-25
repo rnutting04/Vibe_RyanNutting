@@ -13,24 +13,28 @@ export default function AccountDetailPage() {
 
   const [account, setAccount] = useState<Account | null>(null)
   const [transactions, setTransactions] = useState<Transaction[]>([])
+
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
   const [actionLoading, setActionLoading] = useState(false)
+
+  const [pageError, setPageError] = useState<string | null>(null)
+  const [depositError, setDepositError] = useState<string | null>(null)
+  const [withdrawError, setWithdrawError] = useState<string | null>(null)
 
   async function loadAccountData() {
     if (!token || !accountId) return
 
     try {
       setLoading(true)
-      setError(null)
+      setPageError(null)
 
-      const accountData = await getAccount(Number(accountId), token)
-      const transactionsData = await getTransactions(Number(accountId), token)
+      const accountResponse = await getAccount(Number(accountId), token)
+      const transactionsResponse = await getTransactions(Number(accountId), token)
 
-      setAccount(accountData.account)
-      setTransactions(transactionsData.transactions)
+      setAccount(accountResponse.account)
+      setTransactions(transactionsResponse.transactions)
     } catch (err: any) {
-      setError(err.message || 'Failed to load account')
+      setPageError(err.message || 'Failed to load account')
     } finally {
       setLoading(false)
     }
@@ -45,12 +49,13 @@ export default function AccountDetailPage() {
 
     try {
       setActionLoading(true)
-      setError(null)
+      setDepositError(null)
+      setWithdrawError(null)
 
       await deposit(Number(accountId), amount, token)
       await loadAccountData()
     } catch (err: any) {
-      setError(err.message || 'Deposit failed')
+      setDepositError(err.message || 'Deposit failed')
     } finally {
       setActionLoading(false)
     }
@@ -61,12 +66,13 @@ export default function AccountDetailPage() {
 
     try {
       setActionLoading(true)
-      setError(null)
+      setWithdrawError(null)
+      setDepositError(null)
 
       await withdraw(Number(accountId), amount, token)
       await loadAccountData()
     } catch (err: any) {
-      setError(err.message || 'Withdrawal failed')
+      setWithdrawError(err.message || 'Withdrawal failed')
     } finally {
       setActionLoading(false)
     }
@@ -82,11 +88,14 @@ export default function AccountDetailPage() {
     )
   }
 
-  if (error) {
+  if (pageError) {
     return (
       <div style={styles.page}>
         <div style={styles.container}>
-          <p style={{ color: '#dc2626' }}>{error}</p>
+          <div style={styles.card}>
+            <h2 style={{ marginTop: 0 }}>Unable to load account</h2>
+            <p style={{ color: '#dc2626' }}>{pageError}</p>
+          </div>
         </div>
       </div>
     )
@@ -96,7 +105,10 @@ export default function AccountDetailPage() {
     return (
       <div style={styles.page}>
         <div style={styles.container}>
-          <p>Account not found.</p>
+          <div style={styles.card}>
+            <h2 style={{ marginTop: 0 }}>Account not found</h2>
+            <p style={{ color: '#6b7280' }}>This account could not be found or you do not have access to it.</p>
+          </div>
         </div>
       </div>
     )
@@ -109,16 +121,41 @@ export default function AccountDetailPage() {
           <p style={{ margin: 0, color: '#6b7280', textTransform: 'uppercase' }}>
             {account.account_type}
           </p>
-          <h1 style={{ marginTop: '0.25rem' }}>Account #{account.account_id}</h1>
+
+          <h1 style={{ marginTop: '0.25rem', marginBottom: '0.5rem' }}>
+            Account #{account.account_id}
+          </h1>
+
           <p style={{ fontSize: '1.75rem', fontWeight: 700, marginBottom: '1rem' }}>
             ${account.balance.toFixed(2)}
           </p>
 
-          {actionLoading && <p>Processing transaction...</p>}
+          {actionLoading && (
+            <p style={{ color: '#6b7280', marginBottom: '1rem' }}>
+              Processing transaction...
+            </p>
+          )}
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-            <AmountForm label="Deposit" onSubmit={handleDeposit} />
-            <AmountForm label="Withdraw" onSubmit={handleWithdraw} />
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr',
+              gap: '1rem',
+            }}
+          >
+            <AmountForm
+              label="Deposit"
+              onSubmit={handleDeposit}
+              error={depositError}
+              disabled={actionLoading}
+            />
+
+            <AmountForm
+              label="Withdraw"
+              onSubmit={handleWithdraw}
+              error={withdrawError}
+              disabled={actionLoading}
+            />
           </div>
         </div>
 
