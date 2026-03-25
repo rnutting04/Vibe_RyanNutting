@@ -1,0 +1,50 @@
+export const styles = {
+  page: {
+    minHeight: '100vh',
+    background: '#f5f7fb',
+    color: '#1f2937',
+  },
+  container: {
+    maxWidth: '1100px',
+    margin: '0 auto',
+    padding: '2rem',
+  },
+  card: {
+    background: '#ffffff',
+    border: '1px solid #e5e7eb',
+    borderRadius: '14px',
+    padding: '1.25rem',
+    boxShadow: '0 8px 24px rgba(0,0,0,0.06)',
+  },
+  sectionTitle: {
+    fontSize: '1.5rem',
+    fontWeight: 700,
+    marginBottom: '1rem',
+  },
+  input: {
+    width: '100%',
+    padding: '0.85rem 1rem',
+    borderRadius: '10px',
+    border: '1px solid #d1d5db',
+    fontSize: '1rem',
+    boxSizing: 'border-box' as const,
+  },
+  button: {
+    padding: '0.85rem 1.1rem',
+    borderRadius: '10px',
+    border: 'none',
+    background: '#2563eb',
+    color: '#fff',
+    fontWeight: 600,
+    cursor: 'pointer',
+  },
+  secondaryButton: {
+    padding: '0.85rem 1.1rem',
+    borderRadius: '10px',
+    border: '1px solid #cbd5e1',
+    background: '#fff',
+    color: '#111827',
+    fontWeight: 600,
+    cursor: 'pointer',
+  },
+}
