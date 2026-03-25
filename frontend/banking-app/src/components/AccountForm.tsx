@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { styles } from '../styles'
 
 type Props = {
   onSubmit: (accountType: 'checking' | 'savings', initialBalance: number) => void
@@ -23,6 +24,7 @@ export default function AccountForm({ onSubmit }: Props) {
           onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
             setAccountType(e.target.value as 'checking' | 'savings')
           }
+          style={styles.input}
         >
           <option value="checking">Checking</option>
           <option value="savings">Savings</option>
@@ -38,10 +40,13 @@ export default function AccountForm({ onSubmit }: Props) {
           min="0"
           value={initialBalance}
           onChange={(e: React.ChangeEvent<HTMLInputElement>) => setInitialBalance(e.target.value)}
+          style={styles.input}
         />
       </div>
 
-      <button type="submit">Create Account</button>
+      <button type="submit" style={styles.button}>
+        Create Account
+      </button>
     </form>
   )
 }
