@@ -21,8 +21,12 @@ export default function TransactionList({ transactions }: { transactions: Transa
               }}
             >
               <div>
-                <div style={{ fontWeight: 600, textTransform: 'capitalize' }}>{txn.txn_type}</div>
-                <div style={{ color: '#6b7280', fontSize: '0.9rem' }}>{txn.created_at}</div>
+                <div style={{ fontWeight: 600, textTransform: 'capitalize' }}>
+                  {txn.txn_type}
+                </div>
+                <div style={{ color: '#6b7280', fontSize: '0.9rem' }}>
+                  {txn.created_at ? new Date(txn.created_at).toLocaleString() : 'No date'}
+                </div>
               </div>
               <div style={{ fontWeight: 700 }}>${txn.amount.toFixed(2)}</div>
             </div>

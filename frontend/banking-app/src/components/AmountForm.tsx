@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { styles } from '../styles'
 
 type Props = {
   label: string
@@ -10,7 +11,14 @@ export default function AmountForm({ label, onSubmit }: Props) {
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
-    onSubmit(Number(amount))
+
+    const parsedAmount = Number(amount)
+
+    if (!amount || Number.isNaN(parsedAmount) || parsedAmount <= 0) {
+      return
+    }
+
+    onSubmit(parsedAmount)
     setAmount('')
   }
 
@@ -23,8 +31,11 @@ export default function AmountForm({ label, onSubmit }: Props) {
         value={amount}
         onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAmount(e.target.value)}
         placeholder={`${label} amount`}
+        style={styles.input}
       />
-      <button type="submit">{label}</button>
+      <button type="submit" style={styles.button}>
+        {label}
+      </button>
     </form>
   )
 }
