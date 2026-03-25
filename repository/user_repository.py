@@ -10,6 +10,9 @@ class UserRepository:
         self.db.flush()
         self.db.refresh(user)
         return user
+    
+    def get_user_by_email(self, email):
+        return self.db.query(User).filter(User.email == email).first()
 
     def get_user(self, user_id):
         return self.db.query(User).filter(User.user_id == user_id).first()

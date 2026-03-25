@@ -1,4 +1,15 @@
+from decimal import Decimal, InvalidOperation
+
 from flask import Flask, jsonify, request, g
+from flask_cors import CORS
+from flask_jwt_extended import (
+    JWTManager,
+    create_access_token,
+    get_jwt_identity,
+    jwt_required
+)
+from werkzeug.security import generate_password_hash, check_password_hash
+
 from db import SessionLocal
 from repository.user_repository import UserRepository
 from repository.account_repository import AccountRepository
@@ -7,6 +18,12 @@ from service.user_service import UserService
 from service.account_service import AccountService
 
 app = Flask(__name__)
+CORS(app, origins=["http://localhost:5173"])
+
+app.config["JWT_SECRET_KEY"] = "change-this-before-demo"
+jwt = JWTManager(app)
+
+ALLOWED_ACCOUNT_TYPES = {"checking", "savings"}
 
 
 def get_db():
@@ -35,191 +52,336 @@ def get_account_service():
     return AccountService(account_repo, transaction_repo)
 
 
-@app.route('/')
+def parse_amount(value):
+    try:
+        amount = Decimal(str(value))
+    except (InvalidOperation, TypeError, ValueError):
+        return None
+
+    if amount <= 0:
+        return None
+
+    return amount.quantize(Decimal("0.01"))
+
+
+def serialize_account(account):
+    return {
+        "account_id": account.account_id,
+        "user_id": account.user_id,
+        "balance": float(account.balance),
+        "account_type": account.account_type,
+        "created_at": account.created_at.isoformat() if account.created_at else None
+    }
+
+
+def serialize_transaction(txn):
+    return {
+        "txn_id": txn.txn_id,
+        "account_id": txn.account_id,
+        "txn_type": txn.txn_type,
+        "amount": float(txn.amount),
+        "created_at": txn.created_at.isoformat() if txn.created_at else None
+    }
+
+
+@app.route("/")
 def home():
     return jsonify({"message": "Welcome to the Banking System API"})
 
 
-# User endpoints
-@app.route('/api/users', methods=['POST'])
-def create_user():
+# ---------------------------
+# Auth routes
+# ---------------------------
+
+@app.route("/api/auth/register", methods=["POST"])
+def register():
     data = request.get_json()
 
-    if not data or 'user_id' not in data or 'name' not in data:
-        return jsonify({"error": "user_id and name required"}), 400
+    if not data:
+        return jsonify({"error": "Request body is required"}), 400
+
+    name = (data.get("name") or "").strip()
+    email = (data.get("email") or "").strip().lower()
+    password = data.get("password") or ""
+
+    if not name:
+        return jsonify({"error": "name is required"}), 400
+    if not email:
+        return jsonify({"error": "email is required"}), 400
+    if not password:
+        return jsonify({"error": "password is required"}), 400
 
     db = get_db()
     user_service = get_user_service()
 
     try:
+        existing_user = user_service.get_user_by_email(email)
+        if existing_user:
+            return jsonify({"error": "Email already registered"}), 409
+
+        password_hash = generate_password_hash(password)
+
         user = user_service.create_user(
-            user_id=data["user_id"],
-            name=data["name"]
+            name=name,
+            email=email,
+            password_hash=password_hash
         )
+
+        token = create_access_token(identity=str(user.user_id))
+
         return jsonify({
-            "user_id": user.user_id,
-            "name": user.name
+            "message": "User registered successfully",
+            "access_token": token,
+            "user": {
+                "user_id": user.user_id,
+                "name": user.name,
+                "email": user.email,
+                "created_at": user.created_at.isoformat() if user.created_at else None
+            }
         }), 201
-    except Exception as e:
+
+    except Exception:
         db.rollback()
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "Failed to register user"}), 500
 
 
-@app.route('/api/users/<int:user_id>', methods=['GET'])
-def get_user(user_id):
-    db = get_db()
+@app.route("/api/auth/login", methods=["POST"])
+def login():
+    data = request.get_json()
+
+    if not data:
+        return jsonify({"error": "Request body is required"}), 400
+
+    email = (data.get("email") or "").strip().lower()
+    password = data.get("password") or ""
+
+    if not email:
+        return jsonify({"error": "email is required"}), 400
+    if not password:
+        return jsonify({"error": "password is required"}), 400
+
     user_service = get_user_service()
 
     try:
-        user = user_service.get_user(user_id)
+        user = user_service.get_user_by_email(email)
+        if not user or not check_password_hash(user.password_hash, password):
+            return jsonify({"error": "Invalid email or password"}), 401
+
+        token = create_access_token(identity=str(user.user_id))
+
+        return jsonify({
+            "message": "Login successful",
+            "access_token": token,
+            "user": {
+                "user_id": user.user_id,
+                "name": user.name,
+                "email": user.email,
+                "created_at": user.created_at.isoformat() if user.created_at else None
+            }
+        }), 200
+
+    except Exception:
+        return jsonify({"error": "Login failed"}), 500
+
+
+# ---------------------------
+# User routes
+# ---------------------------
+
+@app.route("/api/users/me", methods=["GET"])
+@jwt_required()
+def get_current_user():
+    current_user_id = int(get_jwt_identity())
+    user_service = get_user_service()
+
+    try:
+        user = user_service.get_user(current_user_id)
         if not user:
             return jsonify({"error": "User not found"}), 404
 
         return jsonify({
             "user_id": user.user_id,
-            "name": user.name
-        })
-    except Exception as e:
-        db.rollback()
-        return jsonify({"error": str(e)}), 500
+            "name": user.name,
+            "email": user.email,
+            "created_at": user.created_at.isoformat() if user.created_at else None
+        }), 200
+
+    except Exception:
+        return jsonify({"error": "Failed to fetch user"}), 500
 
 
-# Account endpoints
-@app.route('/api/accounts', methods=['POST'])
+# ---------------------------
+# Account routes
+# ---------------------------
+
+@app.route("/api/accounts", methods=["POST"])
+@jwt_required()
 def create_account():
     data = request.get_json()
 
-    if not data or 'account_id' not in data or 'user_id' not in data:
-        return jsonify({"error": "account_id and user_id required"}), 400
+    if not data:
+        return jsonify({"error": "Request body is required"}), 400
 
-    initial_balance = data.get("initial_balance", 0.0)
+    current_user_id = int(get_jwt_identity())
+    account_type = (data.get("account_type") or "").strip().lower()
+    initial_balance = parse_amount(data.get("initial_balance", 0))
+
+    if account_type not in ALLOWED_ACCOUNT_TYPES:
+        return jsonify({"error": "account_type must be 'checking' or 'savings'"}), 400
+
+    # allow zero initial balance
+    if data.get("initial_balance", 0) in [0, "0", "0.00", 0.0]:
+        initial_balance = Decimal("0.00")
+
+    if initial_balance is None:
+        return jsonify({"error": "initial_balance must be a non-negative valid amount"}), 400
 
     db = get_db()
     account_service = get_account_service()
 
     try:
         account = account_service.create_account(
-            data["account_id"],
-            data["user_id"],
-            initial_balance
+            user_id=current_user_id,
+            initial_balance=initial_balance,
+            account_type=account_type
         )
+
         return jsonify({
-            "account_id": account.account_id,
-            "user_id": account.user_id,
-            "balance": account.balance
+            "message": "Account created successfully",
+            "account": serialize_account(account)
         }), 201
-    except Exception as e:
+
+    except Exception:
         db.rollback()
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "Failed to create account"}), 500
 
 
-@app.route('/api/accounts/<int:account_id>', methods=['GET'])
-def get_account(account_id):
-    db = get_db()
+@app.route("/api/accounts", methods=["GET"])
+@jwt_required()
+def get_my_accounts():
+    current_user_id = int(get_jwt_identity())
     account_service = get_account_service()
 
     try:
-        account = account_service.get_account(account_id)
+        accounts = account_service.get_accounts_by_user(current_user_id)
+        return jsonify({
+            "accounts": [serialize_account(account) for account in accounts]
+        }), 200
+
+    except Exception:
+        return jsonify({"error": "Failed to fetch accounts"}), 500
+
+
+@app.route("/api/accounts/<int:account_id>", methods=["GET"])
+@jwt_required()
+def get_account(account_id):
+    current_user_id = int(get_jwt_identity())
+    account_service = get_account_service()
+
+    try:
+        account = account_service.get_account_for_user(account_id, current_user_id)
         if not account:
             return jsonify({"error": "Account not found"}), 404
 
         return jsonify({
-            "account_id": account.account_id,
-            "user_id": account.user_id,
-            "balance": account.balance
-        })
-    except Exception as e:
-        db.rollback()
-        return jsonify({"error": str(e)}), 500
+            "account": serialize_account(account)
+        }), 200
+
+    except Exception:
+        return jsonify({"error": "Failed to fetch account"}), 500
 
 
-@app.route('/api/accounts/<int:account_id>/deposit', methods=['POST'])
+@app.route("/api/accounts/<int:account_id>/deposit", methods=["POST"])
+@jwt_required()
 def deposit(account_id):
     data = request.get_json()
 
-    if not data or 'amount' not in data:
-        return jsonify({"error": "amount required"}), 400
+    if not data or "amount" not in data:
+        return jsonify({"error": "amount is required"}), 400
+
+    current_user_id = int(get_jwt_identity())
+    amount = parse_amount(data.get("amount"))
+
+    if amount is None:
+        return jsonify({"error": "amount must be a positive valid number"}), 400
 
     db = get_db()
     account_service = get_account_service()
 
     try:
-        account, txn = account_service.deposit(account_id, data['amount'])
+        account, txn = account_service.deposit(current_user_id, account_id, amount)
 
         if not account:
-            if data.get('amount', 0) <= 0:
-                return jsonify({"error": "Deposit amount must be positive"}), 400
             return jsonify({"error": "Account not found"}), 404
 
         return jsonify({
-            "account_id": account.account_id,
-            "balance": account.balance,
-            "transaction_id": txn.transaction_id,
-            "amount": txn.amount,
-            "type": txn.type,
-            "timestamp": str(txn.timestamp)
-        })
-    except Exception as e:
+            "message": "Deposit successful",
+            "account": serialize_account(account),
+            "transaction": serialize_transaction(txn)
+        }), 200
+
+    except Exception:
         db.rollback()
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "Failed to process deposit"}), 500
 
 
-@app.route('/api/accounts/<int:account_id>/withdraw', methods=['POST'])
+@app.route("/api/accounts/<int:account_id>/withdraw", methods=["POST"])
+@jwt_required()
 def withdraw(account_id):
     data = request.get_json()
 
-    if not data or 'amount' not in data:
-        return jsonify({"error": "amount required"}), 400
+    if not data or "amount" not in data:
+        return jsonify({"error": "amount is required"}), 400
+
+    current_user_id = int(get_jwt_identity())
+    amount = parse_amount(data.get("amount"))
+
+    if amount is None:
+        return jsonify({"error": "amount must be a positive valid number"}), 400
 
     db = get_db()
     account_service = get_account_service()
 
     try:
-        account, txn = account_service.withdraw(account_id, data['amount'])
+        account, txn, error_code = account_service.withdraw(current_user_id, account_id, amount)
 
-        if not account:
-            if data.get('amount', 0) <= 0:
-                return jsonify({"error": "Withdraw amount must be positive"}), 400
+        if error_code == "not_found":
+            return jsonify({"error": "Account not found"}), 404
 
-            acc = account_service.get_account(account_id)
-            if not acc:
-                return jsonify({"error": "Account not found"}), 404
-
+        if error_code == "insufficient_funds":
             return jsonify({"error": "Cannot withdraw more than balance"}), 400
 
         return jsonify({
-            "account_id": account.account_id,
-            "balance": account.balance,
-            "transaction_id": txn.transaction_id,
-            "amount": txn.amount,
-            "type": txn.type,
-            "timestamp": str(txn.timestamp)
-        })
-    except Exception as e:
+            "message": "Withdrawal successful",
+            "account": serialize_account(account),
+            "transaction": serialize_transaction(txn)
+        }), 200
+
+    except Exception:
         db.rollback()
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "Failed to process withdrawal"}), 500
 
 
-@app.route('/api/accounts/<int:account_id>/transactions', methods=['GET'])
+@app.route("/api/accounts/<int:account_id>/transactions", methods=["GET"])
+@jwt_required()
 def get_transactions(account_id):
-    db = get_db()
+    current_user_id = int(get_jwt_identity())
     account_service = get_account_service()
 
     try:
+        account = account_service.get_account_for_user(account_id, current_user_id)
+        if not account:
+            return jsonify({"error": "Account not found"}), 404
+
         txns = account_service.get_transactions(account_id)
-        return jsonify([
-            {
-                "transaction_id": t.transaction_id,
-                "amount": t.amount,
-                "type": t.type,
-                "timestamp": str(t.timestamp)
-            }
-            for t in txns
-        ])
-    except Exception as e:
-        db.rollback()
-        return jsonify({"error": str(e)}), 500
+
+        return jsonify({
+            "transactions": [serialize_transaction(txn) for txn in txns]
+        }), 200
+
+    except Exception:
+        return jsonify({"error": "Failed to fetch transactions"}), 500
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     app.run(debug=True)
