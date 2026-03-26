@@ -125,3 +125,6 @@ class AccountService:
         if not account:
             return None
         return self.transaction_repo.get_transactions_by_account(account_id)
+    
+    def get_all_accounts(self):
+        return self.account_repo.get_all_accounts()

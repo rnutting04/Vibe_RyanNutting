@@ -23,3 +23,6 @@ class AccountRepository:
             Account.account_id == account_id,
             Account.user_id == user_id
         ).first()
+    
+    def get_all_accounts(self):
+        return self.db.query(Account).all()

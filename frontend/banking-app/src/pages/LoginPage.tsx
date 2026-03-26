@@ -26,7 +26,12 @@ export default function LoginPage() {
       })
 
       login(data.access_token, data.user)
-      navigate('/')
+      if (data.user.role === 'admin') {
+        navigate('/admin')
+        } else {
+        navigate('/')
+        }
+        
     } catch (err: any) {
       setError(err.message || 'Login failed')
     } finally {

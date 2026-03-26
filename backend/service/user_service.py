@@ -6,9 +6,9 @@ class UserService:
         self.user_repo = user_repo
         self.db = user_repo.db
 
-    def create_user(self, name, email, password_hash):
+    def create_user(self, name, email, password_hash, role="user"):
         try:
-            user = User(name=name, email=email, password_hash=password_hash)
+            user = User(name=name, email=email, password_hash=password_hash, role=role)
             self.user_repo.add_user(user)
             self.db.commit()
             return user

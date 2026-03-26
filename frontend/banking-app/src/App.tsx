@@ -7,6 +7,8 @@ import DashboardPage from './pages/DashboardPage'
 import CreateAccountPage from './pages/CreateAccountPage'
 import AccountDetailPage from './pages/AccountDetailPage'
 import NotFoundPage from './pages/NotFoundPage'
+import AdminRoute from './components/AdminRoute'
+import AdminDashboardPage from './pages/AdminDashboardPage'
 
 export default function App() {
   return (
@@ -38,6 +40,14 @@ export default function App() {
               <ProtectedRoute>
                 <AccountDetailPage />
               </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin"
+            element={
+              <AdminRoute>
+                <AdminDashboardPage />
+              </AdminRoute>
             }
           />
           <Route path="*" element={<NotFoundPage />} />

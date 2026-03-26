@@ -32,6 +32,12 @@ def get_db():
     return g.db
 
 
+def get_current_user_object():
+    current_user_id = int(get_jwt_identity())
+    user_service = get_user_service()
+    return user_service.get_user(current_user_id)
+
+
 @app.teardown_appcontext
 def close_db(error=None):
     db = g.pop("db", None)
@@ -89,6 +95,31 @@ def home():
     return jsonify({"message": "Welcome to the Banking System API"})
 
 
+@app.route("/api/admin/accounts", methods=["GET"])
+@jwt_required()
+def get_all_accounts_admin():
+    current_user = get_current_user_object()
+
+    if not current_user or current_user.role != "admin":
+        return jsonify({"error": "Forbidden"}), 403
+
+    account_service = get_account_service()
+    accounts = account_service.get_all_accounts()
+
+    return jsonify({
+        "accounts": [
+            {
+                "account_id": a.account_id,
+                "user_id": a.user_id,
+                "balance": float(a.balance),
+                "account_type": a.account_type,
+                "created_at": a.created_at.isoformat() if a.created_at else None
+            }
+            for a in accounts
+        ]
+    }), 200
+
+
 # ---------------------------
 # Auth routes
 # ---------------------------
@@ -124,7 +155,8 @@ def register():
         user = user_service.create_user(
             name=name,
             email=email,
-            password_hash=password_hash
+            password_hash=password_hash,
+            role="user"
         )
 
         token = create_access_token(identity=str(user.user_id))
@@ -176,7 +208,8 @@ def login():
                 "user_id": user.user_id,
                 "name": user.name,
                 "email": user.email,
-                "created_at": user.created_at.isoformat() if user.created_at else None
+                "created_at": user.created_at.isoformat() if user.created_at else None,
+                "role": user.role
             }
         }), 200
 
