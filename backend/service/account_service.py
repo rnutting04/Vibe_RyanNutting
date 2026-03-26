@@ -1,52 +1,43 @@
+from datetime import datetime
 from repository.account_repository import AccountRepository
 from repository.transaction_repository import TransactionRepository
-from models.account import Account
-from models.transaction import Transaction
+from db import get_next_sequence
 
 ALLOWED_ACCOUNT_TYPES = {"checking", "savings"}
+
 
 class AccountService:
     def __init__(self, account_repo: AccountRepository, transaction_repo: TransactionRepository):
         self.account_repo = account_repo
         self.transaction_repo = transaction_repo
-        self.db = account_repo.db
-
 
     def create_account(self, user_id, initial_balance=0.00, account_type="checking"):
-        try:
-            # normalize input
-            account_type = account_type.strip().lower()
+        account_type = account_type.strip().lower()
 
-            # ✅ validate here (service layer)
-            if account_type not in ALLOWED_ACCOUNT_TYPES:
-                raise ValueError("Invalid account type")
+        if account_type not in ALLOWED_ACCOUNT_TYPES:
+            raise ValueError("Invalid account type")
 
-            account = Account(
-                user_id=user_id,
-                balance=initial_balance,
-                account_type=account_type
-            )
+        account_data = {
+            "account_id": get_next_sequence("account_id"),
+            "user_id": user_id,
+            "balance": float(initial_balance),
+            "account_type": account_type,
+            "created_at": datetime.utcnow(),
+        }
 
-            self.account_repo.add_account(account)
-            self.db.commit()
-            self.db.refresh(account)
+        created_account = self.account_repo.add_account(account_data)
 
-            # optional: record opening deposit
-            if initial_balance > 0:
-                txn = Transaction(
-                    account_id=account.account_id,
-                    amount=initial_balance,
-                    txn_type="deposit"
-                )
-                self.transaction_repo.add_transaction(txn)
-                self.db.commit()
-                self.db.refresh(txn)
+        if float(initial_balance) > 0:
+            txn_data = {
+                "txn_id": get_next_sequence("txn_id"),
+                "account_id": created_account["account_id"],
+                "txn_type": "deposit",
+                "amount": float(initial_balance),
+                "created_at": datetime.utcnow(),
+            }
+            self.transaction_repo.add_transaction(txn_data)
 
-            return account
-
-        except Exception:
-            self.db.rollback()
-            raise
+        return created_account
 
     def get_account(self, account_id):
         return self.account_repo.get_account(account_id)
@@ -57,65 +48,61 @@ class AccountService:
     def get_account_for_user(self, account_id, user_id):
         return self.account_repo.get_account_by_id_and_user(account_id, user_id)
 
+    def get_all_accounts(self):
+        return self.account_repo.get_all_accounts()
+
     def deposit(self, user_id, account_id, amount):
-        try:
-            account = self.get_account_for_user(account_id, user_id)
-            if not account:
-                return None, None
+        account = self.get_account_for_user(account_id, user_id)
 
-            if amount <= 0:
-                return None, None
+        if not account:
+            return None, None
 
-            account.balance += amount
+        if amount <= 0:
+            return None, None
 
-            txn = Transaction(
-                account_id=account.account_id,
-                amount=amount,
-                txn_type="deposit"
-            )
+        new_balance = float(account["balance"]) + float(amount)
+        self.account_repo.update_balance(account_id, new_balance)
 
-            self.transaction_repo.add_transaction(txn)
+        txn_data = {
+            "txn_id": get_next_sequence("txn_id"),
+            "account_id": account_id,
+            "txn_type": "deposit",
+            "amount": float(amount),
+            "created_at": datetime.utcnow(),
+        }
 
-            self.db.commit()
-            self.db.refresh(account)
-            self.db.refresh(txn)
+        self.transaction_repo.add_transaction(txn_data)
 
-            return account, txn
-        except Exception:
-            self.db.rollback()
-            raise
+        updated_account = self.account_repo.get_account(account_id)
+        return updated_account, txn_data
 
     def withdraw(self, user_id, account_id, amount):
-        try:
-            account = self.get_account_for_user(account_id, user_id)
+        account = self.get_account_for_user(account_id, user_id)
 
-            if not account:
-                return None, None, "not_found"
+        if not account:
+            return None, None, "not_found"
 
-            if amount <= 0:
-                return None, None, "invalid_amount"
+        if amount <= 0:
+            return None, None, "invalid_amount"
 
-            if account.balance < amount:
-                return None, None, "insufficient_funds"
+        if float(account["balance"]) < float(amount):
+            return None, None, "insufficient_funds"
 
-            account.balance -= amount
+        new_balance = float(account["balance"]) - float(amount)
+        self.account_repo.update_balance(account_id, new_balance)
 
-            txn = Transaction(
-                account_id=account.account_id,
-                amount=amount,
-                txn_type="withdrawal"
-            )
+        txn_data = {
+            "txn_id": get_next_sequence("txn_id"),
+            "account_id": account_id,
+            "txn_type": "withdrawal",
+            "amount": float(amount),
+            "created_at": datetime.utcnow(),
+        }
 
-            self.transaction_repo.add_transaction(txn)
+        self.transaction_repo.add_transaction(txn_data)
 
-            self.db.commit()
-            self.db.refresh(account)
-            self.db.refresh(txn)
-
-            return account, txn, None
-        except Exception:
-            self.db.rollback()
-            raise
+        updated_account = self.account_repo.get_account(account_id)
+        return updated_account, txn_data, None
 
     def get_transactions(self, account_id):
         return self.transaction_repo.get_transactions_by_account(account_id)
@@ -125,6 +112,3 @@ class AccountService:
         if not account:
             return None
         return self.transaction_repo.get_transactions_by_account(account_id)
-    
-    def get_all_accounts(self):
-        return self.account_repo.get_all_accounts()

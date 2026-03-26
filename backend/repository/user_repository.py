@@ -1,18 +1,13 @@
-from db import SessionLocal
-from models.user import User
+from db import users_collection
+
 
 class UserRepository:
-    def __init__(self, db):
-        self.db = db
-
-    def add_user(self, user):
-        self.db.add(user)
-        self.db.flush()
-        self.db.refresh(user)
-        return user
-    
     def get_user_by_email(self, email):
-        return self.db.query(User).filter(User.email == email).first()
+        return users_collection.find_one({"email": email.strip().lower()})
 
     def get_user(self, user_id):
-        return self.db.query(User).filter(User.user_id == user_id).first()
+        return users_collection.find_one({"user_id": user_id})
+
+    def add_user(self, user_data):
+        users_collection.insert_one(user_data)
+        return user_data

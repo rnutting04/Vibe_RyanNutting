@@ -1,17 +1,12 @@
-from db import SessionLocal
-from models.transaction import Transaction
-
+from db import transactions_collection
 
 
 class TransactionRepository:
-    def __init__(self, db):
-        self.db = db
-
-    def add_transaction(self, transaction):
-        self.db.add(transaction)
-        self.db.flush()
-        self.db.refresh(transaction)
-        return transaction
+    def add_transaction(self, transaction_data):
+        transactions_collection.insert_one(transaction_data)
+        return transaction_data
 
     def get_transactions_by_account(self, account_id):
-        return self.db.query(Transaction).filter(Transaction.account_id == account_id).all()
+        return list(
+            transactions_collection.find({"account_id": account_id}).sort("created_at", -1)
+        )

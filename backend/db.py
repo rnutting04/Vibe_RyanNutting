@@ -1,25 +1,29 @@
+from pymongo import MongoClient, ReturnDocument
 import os
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, declarative_base
 from dotenv import load_dotenv
 
 load_dotenv()
 
-DATABASE_URL = os.getenv("DATABASE_URL")
+MONGODB_URI = os.getenv("MONGODB_URI")
+DB_NAME = os.getenv("MONGODB_DB_NAME", "bank_app_mongo")
 
-if not DATABASE_URL:
-    raise ValueError("DATABASE_URL is not set in the .env file")
+if not MONGODB_URI:
+    raise ValueError("MONGODB_URI is missing from .env")
 
-engine = create_engine(
-    DATABASE_URL,
-    echo=True,
-    pool_pre_ping=True
-)
+client = MongoClient(MONGODB_URI)
+db = client[DB_NAME]
 
-SessionLocal = sessionmaker(
-    autocommit=False,
-    autoflush=False,
-    bind=engine
-)
+users_collection = db["users"]
+accounts_collection = db["accounts"]
+transactions_collection = db["transactions"]
+counters_collection = db["counters"]
 
-Base = declarative_base()
+
+def get_next_sequence(name: str) -> int:
+    counter = counters_collection.find_one_and_update(
+        {"_id": name},
+        {"$inc": {"value": 1}},
+        upsert=True,
+        return_document=ReturnDocument.AFTER
+    )
+    return counter["value"]
