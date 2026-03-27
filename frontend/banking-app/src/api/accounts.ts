@@ -30,7 +30,7 @@ type TransactionResponse = {
 }
 
 export async function getAccounts(token: string): Promise<GetAccountsResponse> {
-  return apiRequest('/api/accounts', {
+  return apiRequest(`/api/accounts`, {
     method: 'GET',
     headers: {
       Authorization: `Bearer ${token}`,
@@ -42,7 +42,7 @@ export async function createAccount(
   payload: CreateAccountPayload,
   token: string,
 ): Promise<CreateAccountResponse> {
-  return apiRequest('/api/accounts', {
+  return apiRequest(`/api/accounts`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`,
